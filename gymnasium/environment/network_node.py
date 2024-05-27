@@ -1,4 +1,4 @@
-class Node:
+class Network_Node:
     """This class represents a network node. It is capable of processing
     instructions."""
     def __init__(self, processing_speed, bandwidth, memory):
