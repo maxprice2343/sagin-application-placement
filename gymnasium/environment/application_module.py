@@ -1,4 +1,4 @@
-class Module:
+class Application_Module:
     """This class represents an activity module. It consists of instructions
     that require processing. """
     def __init__(self, num_instructions, memory_required, data_size):
