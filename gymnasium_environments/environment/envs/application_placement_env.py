@@ -85,16 +85,16 @@ class ApplicationPlacementEnv(gym.Env):
         self.observation_space = gym.spaces.Dict(
             {
                 "modules" : gym.spaces.Box(
-                    low=np.array([MODULE_SIZE_LOWER_BOUND, MODULE_MEMORY_REQUIRED_LOWER_BOUND,
-                         MODULE_DATA_SIZE_LOWER_BOUND]),
-                    high=np.array([MODULE_SIZE_UPPER_BOUND, MODULE_MEMORY_REQUIRED_UPPER_BOUND,
-                          MODULE_DATA_SIZE_UPPER_BOUND])
+                    low=np.array([NUM_MODULES_LOWER_BOUND, MODULE_SIZE_LOWER_BOUND,
+                                  MODULE_MEMORY_REQUIRED_LOWER_BOUND, MODULE_DATA_SIZE_LOWER_BOUND]),
+                    high=np.array([NUM_MODULES_UPPER_BOUND, MODULE_SIZE_UPPER_BOUND,
+                                   MODULE_MEMORY_REQUIRED_UPPER_BOUND, MODULE_DATA_SIZE_UPPER_BOUND])
                 ),
                 "nodes" : gym.spaces.Box(
-                    low=np.array([NODE_SPEED_LOWER_BOUND, NODE_BANDWIDTH_LOWER_BOUND,
-                         NODE_MEMORY_LOWER_BOUND]),
-                    high=np.array([NODE_SPEED_UPPER_BOUND, NODE_BANDWIDTH_UPPER_BOUND,
-                          NODE_MEMORY_UPPER_BOUND])
+                    low=np.array([NUM_NODES_LOWER_BOUND, NODE_SPEED_LOWER_BOUND,
+                                  NODE_BANDWIDTH_LOWER_BOUND, NODE_MEMORY_LOWER_BOUND]),
+                    high=np.array([NUM_NODES_UPPER_BOUND, NODE_SPEED_UPPER_BOUND,
+                                   NODE_BANDWIDTH_UPPER_BOUND, NODE_MEMORY_UPPER_BOUND])
                 )
             }
         )
@@ -108,7 +108,20 @@ class ApplicationPlacementEnv(gym.Env):
         self.render_mode = render_mode
         self.window = None
         self.clock = None
-        
+
+    def _get_obs(self):
+        """Translates the environment's current state into an observation"""
+        modules = np.ndarray(shape=(len(self.modules), 4), dtype=int)
+        for i, (k, v) in enumerate(self.modules):
+            modules[i] = [k, v.num_instructions, v.memory_required, v.data_size]
+        nodes = np.ndarray(shape=(len(self.nodes), 4), dtype=int)
+        for i, (k, v) in enumerate(self.nodes):
+            nodes[i] = [k, v.processing_speed, v.bandwidth, v.memory]
+
+        return {
+            "modules": modules,
+            "nodes": nodes
+        }
     
     def _generate_modules(self, num_modules):
         """Generates a list of Application_Module objects each with randomly
