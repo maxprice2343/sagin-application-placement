@@ -67,12 +67,53 @@ class ApplicationPlacementEnv(gym.Env):
             NUM_NODES_LOWER_BOUND, NUM_NODES_UPPER_BOUND
         )
         self.nodes = self._generate_nodes(num_nodes)
+
+        # The observation space is a dictionary containing a list of modules
+        # and nodes
+        # Modules:
+        # -----------------------------------------------------------------------
+        # Module 1 Num Instructions, Module 1 Memory Required, Module 1 Data Size
+        # Module 2 Num Instructions, Module 2 Memory Required, Module 2 Data Size
+        # ....
+        # -----------------------------------------------------------------------
+        # Nodes:
+        # -----------------------------------------------------------------------
+        # Node 1 Speed, Node 1 Bandwidth, Node 1 Memory
+        # Node 2 Speed, Node 2 Bandwidth, Node 2 Memory
+        # ....
+        # -----------------------------------------------------------------------
+        self.observation_space = gym.spaces.Dict(
+            {
+                "modules" : gym.spaces.Box(
+                    low=np.array([MODULE_SIZE_LOWER_BOUND, MODULE_MEMORY_REQUIRED_LOWER_BOUND,
+                         MODULE_DATA_SIZE_LOWER_BOUND]),
+                    high=np.array([MODULE_SIZE_UPPER_BOUND, MODULE_MEMORY_REQUIRED_UPPER_BOUND,
+                          MODULE_DATA_SIZE_UPPER_BOUND])
+                ),
+                "nodes" : gym.spaces.Box(
+                    low=np.array([NODE_SPEED_LOWER_BOUND, NODE_BANDWIDTH_LOWER_BOUND,
+                         NODE_MEMORY_LOWER_BOUND]),
+                    high=np.array([NODE_SPEED_UPPER_BOUND, NODE_BANDWIDTH_UPPER_BOUND,
+                          NODE_MEMORY_UPPER_BOUND])
+                )
+            }
+        )
+        # The action taken by an agent will be placing a specific module on
+        # a specific node for processing.
+        self.action_space = gym.spaces.Discrete(2)
+
+        # Ensures the provided render mode is None (i.e. no rendering will happen)
+        # or it is one of the accepted render methods
+        assert render_mode is None or render_mode in self.metadata["render_modes"]
+        self.render_mode = render_mode
+        self.window = None
+        self.clock = None
         
     
     def _generate_modules(self, num_modules):
         """Generates a list of Application_Module objects each with randomly
         generated properties."""
-        modules = []
+        modules = {}
         for i in range(num_modules):
             # Generates properties of the new modules randomly between set
             # bounds
@@ -87,16 +128,15 @@ class ApplicationPlacementEnv(gym.Env):
                 MODULE_DATA_SIZE_LOWER_BOUND, MODULE_DATA_SIZE_UPPER_BOUND
             )
             # Creates the new module using the properties and appends it to
-            # a list
-            modules.append(
-                Application_Module(num_instructions, memory_required, data_size)
-            )
+            # a dictionary
+            modules[i] = Application_Module(num_instructions,
+                                            memory_required, data_size)
         return modules
     
     def _generate_nodes(self, num_nodes):
         """Generates a list of Node objects each with randomly generated
         properties."""
-        nodes = []
+        nodes = {}
         for i in range(num_nodes):
             # Generates properties of the new nodes randomly between set
             # bounds
@@ -110,8 +150,6 @@ class ApplicationPlacementEnv(gym.Env):
                 NODE_MEMORY_LOWER_BOUND, NODE_MEMORY_UPPER_BOUND
             )
             # Creates the new node using the properties and appends it to
-            # a list
-            nodes.append(
-                Network_Node(processing_speed, bandwidth, memory)
-            )
+            # a dictionary
+            nodes[i] = Network_Node(processing_speed, bandwidth, memory)
         return nodes
