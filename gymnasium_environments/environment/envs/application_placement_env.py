@@ -49,6 +49,9 @@ MODULE_MEMORY_REQUIRED_UPPER_BOUND = 3000000
 MODULE_DATA_SIZE_LOWER_BOUND = 200000
 MODULE_DATA_SIZE_UPPER_BOUND = 800000
 
+# Maximum amount of time a module is afforded for processing (seconds)
+MAXIMUM_MODULE_PROCESSING_TIME = 1
+
 class ApplicationPlacementEnv(gym.Env):
     """ A Gymnasium environment that represents a SAGIN via
     nodes (network devices). Modules are discrete pieces of an
@@ -59,15 +62,6 @@ class ApplicationPlacementEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
 
     def __init__(self, render_mode=None):
-        num_modules = random.randint(
-            NUM_MODULES_LOWER_BOUND, NUM_MODULES_UPPER_BOUND
-        )
-        self.modules = self._generate_modules(num_modules)
-        num_nodes = random.randint(
-            NUM_NODES_LOWER_BOUND, NUM_NODES_UPPER_BOUND
-        )
-        self.nodes = self._generate_nodes(num_nodes)
-
         # The observation space is a dictionary containing a list of modules
         # and nodes
         # Modules:
@@ -100,7 +94,10 @@ class ApplicationPlacementEnv(gym.Env):
         )
         # The action taken by an agent will be placing a specific module on
         # a specific node for processing.
-        self.action_space = gym.spaces.Discrete(2)
+        self.action_space = gym.spaces.Box(
+            low = np.array([NUM_MODULES_LOWER_BOUND, NUM_MODULES_UPPER_BOUND]),
+            high = np.array([NUM_NODES_LOWER_BOUND, NUM_NODES_UPPER_BOUND])
+        )
 
         # Ensures the provided render mode is None (i.e. no rendering will happen)
         # or it is one of the accepted render methods
@@ -108,6 +105,67 @@ class ApplicationPlacementEnv(gym.Env):
         self.render_mode = render_mode
         self.window = None
         self.clock = None
+
+    def reset(self, seed=None, options=None):
+        """Resets the environment by generating a new set of modules and nodes
+        with random characteristics"""
+        super().reset(seed=seed)
+
+        num_modules = random.randint(
+            NUM_MODULES_LOWER_BOUND, NUM_MODULES_UPPER_BOUND
+        )
+        self.modules = self._generate_modules(num_modules)
+        num_nodes = random.randint(
+            NUM_NODES_LOWER_BOUND, NUM_NODES_UPPER_BOUND
+        )
+        self.nodes = self._generate_nodes(num_nodes)
+
+        return self._get_obs(), None
+    
+    def step(self, action):
+        """Moves the environment forward by 1 step (assigning a module to a
+        node for processing)"""
+        module = self.modules[action[0]]
+        node = self.nodes[action[1]]
+
+        # Adding the module to the node's processing list
+        node.add_module(action[0], module)
+        
+        # If any module is not yet finished processing then the environment
+        # can't terminate yet
+        terminated = True
+        for k, v in self.modules:
+            if not v.done:
+                terminated = False
+                break
+        
+        # Calculates the processing time of the module
+        processing_time = module.num_instructions / node.processing_speed
+        # Calculates the memory already used by other modules deployed on the
+        # node
+        memory_used = 0
+        for k, v in node.modules:
+            if k != action[0]:
+                memory_used += v.memory_required
+        # Calculates the resource overhead of the current module
+        resource_overhead = module.memory_required / (node.memory - memory_used)
+        # Calculates the reward for the processing of this module
+        # The first part of the calculation incentivizes reduced processing
+        # time (it will be between 0 and MAXIMUM_MODULE_PROCESSING_TIME)
+        # The second part incentivizes reduced resource overhead. It uses
+        # MAXIMUM_MODULE_PROCESSING_TIME to normalize the value (1 - memory_used)
+        # which is between 0 and 1, to make it between 0 and
+        # MAXIMUM_MODULE_PROCESSING_TIME
+        # This ensures that reducing processing speed and reducing resource
+        # overhead are considered equal goals.
+        reward = (MAXIMUM_MODULE_PROCESSING_TIME - processing_time) + MAXIMUM_MODULE_PROCESSING_TIME * (1 - memory_used)
+
+        observation = self._get_obs()
+
+        """if self.render_mode == "human":
+            self._render_frame()"""
+
+        return observation, reward, terminated, False, None
 
     def _get_obs(self):
         """Translates the environment's current state into an observation"""
@@ -124,7 +182,7 @@ class ApplicationPlacementEnv(gym.Env):
         }
     
     def _generate_modules(self, num_modules):
-        """Generates a list of Application_Module objects each with randomly
+        """Generates a dictionary of Application_Module objects each with randomly
         generated properties."""
         modules = {}
         for i in range(num_modules):
@@ -147,7 +205,7 @@ class ApplicationPlacementEnv(gym.Env):
         return modules
     
     def _generate_nodes(self, num_nodes):
-        """Generates a list of Node objects each with randomly generated
+        """Generates a dictionary of Node objects each with randomly generated
         properties."""
         nodes = {}
         for i in range(num_nodes):
