@@ -8,3 +8,5 @@ class Application_Module:
         self.memory_required = memory_required
         # The amount of data required by the node as input, in Bytes
         self.data_size = data_size
+        # Stores whether or not the processing for this node has been completed
+        self.done = False
