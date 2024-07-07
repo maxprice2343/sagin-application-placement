@@ -166,6 +166,59 @@ class ApplicationPlacementEnv(gym.Env):
             self._render_frame()"""
 
         return observation, reward, terminated, False, None
+    
+    def render(self):
+        """Returns an rgb array representing the environment."""
+        return self._render_frame()
+
+    def _render_frame(self):
+        """Renders the environment's state using PyGame."""
+        # Initializes pygame, and creates a window and/or clock object if they
+        # aren't created already
+        if self.window is None and self.render_mode == "human":
+            pg.init()
+            pg.display.init()
+            pg.font.init()
+            self.text_font = pg.font.SysFont("Arial", 12)
+            self.window = pg.display.set_mode((512, 512))
+
+        if self.clock is None and self.render_mode == "human":
+            self.clock = pg.time.Clock()
+
+        # Creates the canvas with a white background to draw on
+        canvas = pg.Surface((512, 512))
+        canvas.fill((255,255,255))
+
+        #TODO: Add variables to store window size, etc.
+
+        module_text_surface = self.text_font.render("Modules:", False, (0,0,0))
+        canvas.blit(module_text_surface, (10,10))
+
+        node_text_surface = self.text_font.render("Nodes:", False, (0,0,0))
+        canvas.blit(node_text_surface, (400,400))
+
+        #TODO: Add labels to illustrations
+
+        for i, (k, v) in self.modules:
+            pg.draw.rect(canvas, (37,58,76), pg.Rect((20, 10 * i), (40, 20)))
+        
+        for i, (k, v) in self.nodes:
+            pg.draw.rect(canvas, (226,131,89), pg.Rect((400, 10 * i), (40, 20)))
+
+        if self.render_mode == "human":
+            self.window.blit(canvas, canvas.get_rect()) # type: ignore
+            pg.event.pump()
+            pg.display.update()
+            self.clock.tick(self.metadata["framerate"]) # type: ignore
+        else:
+            return np.transpose(
+                np.array(pg.surfarray.pixels3d(canvas)), axes=(1,0,2)
+            )
+
+    def close(self):
+        if self.window is not None:
+            pg.display.quit()
+            pg.quit()
 
     def _get_obs(self):
         """Translates the environment's current state into an observation"""
