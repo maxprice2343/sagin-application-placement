@@ -115,7 +115,7 @@ class ApplicationPlacementEnv(gym.Env):
             high = np.array([NUM_MODULES_UPPER_BOUND, NUM_NODES_UPPER_BOUND])
         )
 
-        self.window_size = 1024
+        self.window_size = 512
 
         # Ensures the provided render mode is None (i.e. no rendering will happen)
         # or it is one of the accepted render methods
@@ -133,9 +133,6 @@ class ApplicationPlacementEnv(gym.Env):
         self.nodes = self._generate_nodes(self.num_nodes)
 
         obs = self._get_obs()
-        """print(f"# Modules: {self.num_modules}")
-        print(f"# Nodes: {self.num_nodes}")
-        print(obs)"""
         return obs, {}
     
     def step(self, action):
@@ -176,11 +173,13 @@ class ApplicationPlacementEnv(gym.Env):
         # This ensures that reducing processing speed and reducing resource
         # overhead are considered equal goals.
         reward = (MAXIMUM_MODULE_PROCESSING_TIME - processing_time) + MAXIMUM_MODULE_PROCESSING_TIME * (1 - memory_used)
+        node.remove_module(action[0])
+        module.finish_processing()
 
         observation = self._get_obs()
 
-        """if self.render_mode == "human":
-            self._render_frame()"""
+        if self.render_mode == "human":
+            self._render_frame()
 
         return observation, reward, terminated, False, {}
     
@@ -209,23 +208,28 @@ class ApplicationPlacementEnv(gym.Env):
         #TODO: Add variables to store window size, etc.
 
         module_text_surface = self.text_font.render("Modules:", False, (0,0,0))
-        canvas.blit(module_text_surface, (10,10))
+        canvas.blit(module_text_surface, (10, 10))
 
         node_text_surface = self.text_font.render("Nodes:", False, (0,0,0))
-        canvas.blit(node_text_surface, (400,10))
+        canvas.blit(node_text_surface, (self.window_size - 112, 10))
 
         #TODO: Add labels to illustrations
-
+        module_radius = 10
+        module_x = 25
+        module_colour = (37, 58, 76) #dark blue
         for i, (k, v) in enumerate(self.modules.items()):
             if v.processing == False:
-                pg.draw.circle(canvas, (37, 58, 76), (25, 40 * (k+1)), 10)
+                pg.draw.circle(canvas, module_colour, (module_x, 40 * (k+1)), module_radius)
         
+        node_x = self.window_size - 112
+        node_colour = (226, 131, 89) #orange
+        node_dims = (40, 20)
+        padding = 5
         for i, (k, v) in enumerate(self.nodes.items()):
-            pg.draw.rect(canvas, (226, 131, 89), pg.Rect((400, 40 * (i+1)), (40, 20)))
-            print(self.nodes[k].modules)
+            pg.draw.rect(canvas, node_colour, pg.Rect((node_x, 40 * (i+1)), node_dims))
             if len(self.nodes[k].modules) > 0:
                 for j, (kn, vn) in enumerate(self.nodes[k].modules.items()):
-                    pg.draw.circle(canvas, (37, 58, 76), (400 * (j+1) + 40 + 15, 45 * (i+1)), 10)
+                    pg.draw.circle(canvas, module_colour, (node_x * (j+1) + node_dims[0] + module_radius + padding, 45 * (i+1)), module_radius)
 
         if self.render_mode == "human":
             self.window.blit(canvas, canvas.get_rect()) # type: ignore
