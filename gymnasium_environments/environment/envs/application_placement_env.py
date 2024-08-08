@@ -11,13 +11,13 @@ from gymnasium_environments.environment.network_node import Network_Node
 
 # These represent the lower and upper bounds on the number of
 # activity modules in the environment
-NUM_MODULES_LOWER_BOUND = 100
-NUM_MODULES_UPPER_BOUND = 145
+NUM_MODULES_LOWER_BOUND = 50
+NUM_MODULES_UPPER_BOUND = 50
 
 # These represent the lower and upper bounds on the number of
 # network nodes in the environment
-NUM_NODES_LOWER_BOUND = 70
-NUM_NODES_UPPER_BOUND = 110
+NUM_NODES_LOWER_BOUND = 15
+NUM_NODES_UPPER_BOUND = 15
 
 # These represent the lower and upper bounds on the processing speed
 # of network nodes in Instructions Per Second (IPS)
@@ -135,51 +135,59 @@ class ApplicationPlacementEnv(gym.Env):
         obs = self._get_obs()
         return obs, {}
     
-    def step(self, action):
+    def _first_module(self):
+        """Returns the first module from the dictionary"""
+        for (k, v) in self.modules.items():
+            return k, v
+        return None
+
+    def step(self, action: int):
         """Moves the environment forward by 1 step (assigning a module to a
         node for processing)"""
-        module = self.modules[action[0]]
-        node = self.nodes[action[1]]
+        first_module = self._first_module()
+        if first_module is not None:
+            module_num, module = first_module
+            node = self.nodes[action]
 
-        # Adding the module to the node's processing list
-        node.add_module(action[0], module)
-        module.start_processing()
-        
-        # If any module is not yet finished processing then the environment
-        # can't terminate yet
-        terminated = True
-        for k, v in self.modules.items():
-            if not v.done:
-                terminated = False
-                break
-        
-        # Calculates the processing time of the module
-        processing_time = module.num_instructions / node.processing_speed
-        # Calculates the memory already used by other modules deployed on the
-        # node
-        memory_used = 0
-        for k, v in node.modules.items():
-            if k != action[0]:
-                memory_used += v.memory_required
-        # Calculates the resource overhead of the current module
-        resource_overhead = module.memory_required / (node.memory - memory_used)
-        # Calculates the reward for the processing of this module
-        # The first part of the calculation incentivizes reduced processing
-        # time (it will be between 0 and MAXIMUM_MODULE_PROCESSING_TIME)
-        # The second part incentivizes reduced resource overhead. It uses
-        # MAXIMUM_MODULE_PROCESSING_TIME to normalize the value (1 - memory_used)
-        # which is between 0 and 1, to make it between 0 and
-        # MAXIMUM_MODULE_PROCESSING_TIME
-        # This ensures that reducing processing speed and reducing resource
-        # overhead are considered equal goals.
-        reward = (MAXIMUM_MODULE_PROCESSING_TIME - processing_time) + MAXIMUM_MODULE_PROCESSING_TIME * (1 - memory_used)
-        node.remove_module(action[0])
-        module.finish_processing()
+            # Adding the module to the node's processing list
+            node.add_module(module_num, module)
+            module.start_processing()
+            
+            # If any module is not yet finished processing then the environment
+            # can't terminate yet
+            terminated = True
+            for k, v in self.modules.items():
+                if not v.done:
+                    terminated = False
+                    break
+            
+            # Calculates the processing time of the module
+            processing_time = module.num_instructions / node.processing_speed
+            # Calculates the memory already used by other modules deployed on the
+            # node
+            memory_used = 0
+            for k, v in node.modules.items():
+                if k != module_num:
+                    memory_used += v.memory_required
+            # Calculates the resource overhead of the current module
+            resource_overhead = module.memory_required / (node.memory - memory_used)
+            # Calculates the reward for the processing of this module
+            # The first part of the calculation incentivizes reduced processing
+            # time (it will be between 0 and MAXIMUM_MODULE_PROCESSING_TIME)
+            # The second part incentivizes reduced resource overhead. It uses
+            # MAXIMUM_MODULE_PROCESSING_TIME to normalize the value (1 - memory_used)
+            # which is between 0 and 1, to make it between 0 and
+            # MAXIMUM_MODULE_PROCESSING_TIME
+            # This ensures that reducing processing speed and reducing resource
+            # overhead are considered equal goals.
+            reward = (MAXIMUM_MODULE_PROCESSING_TIME - processing_time) + MAXIMUM_MODULE_PROCESSING_TIME * (1 - memory_used)
+            node.remove_module(module_num)
+            module.finish_processing()
 
-        observation = self._get_obs()
+            observation = self._get_obs()
 
-        if self.render_mode == "human":
-            self._render_frame()
+            if self.render_mode == "human":
+                self._render_frame()
 
         return observation, reward, terminated, False, {}
     
