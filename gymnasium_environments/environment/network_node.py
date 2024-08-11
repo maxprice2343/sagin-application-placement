@@ -1,4 +1,4 @@
-from gymnasium_environments.environment.application_module import Application_Module
+from environment.application_module import Application_Module
 
 class Network_Node:
     """This class represents a network node. It is capable of processing

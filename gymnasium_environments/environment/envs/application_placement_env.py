@@ -5,9 +5,11 @@ import numpy as np
 import gymnasium as gym
 import pygame as pg
 
-from gymnasium_environments.environment.application_module import Application_Module
+#from gymnasium_environments.environment.application_module import Application_Module
+from environment.application_module import Application_Module
+from environment.network_node import Network_Node
 
-from gymnasium_environments.environment.network_node import Network_Node
+#from gymnasium_environments.environment.network_node import Network_Node
 
 # These represent the lower and upper bounds on the number of
 # activity modules in the environment
@@ -82,18 +84,14 @@ class ApplicationPlacementEnv(gym.Env):
         self.num_nodes = random.randint(
             NUM_NODES_LOWER_BOUND, NUM_NODES_UPPER_BOUND
         )
-        self.num_modules = 5
-        self.num_nodes = 2
-        self.observation_space = gym.spaces.Dict(
+        """self.observation_space = gym.spaces.Dict(
             {
-                "modules" : gym.spaces.Box(
-                    low=np.resize(np.array([0, MODULE_SIZE_LOWER_BOUND,
+                "first_module" : gym.spaces.Box(
+                    low=np.array([0, MODULE_SIZE_LOWER_BOUND,
                                   MODULE_MEMORY_REQUIRED_LOWER_BOUND, MODULE_DATA_SIZE_LOWER_BOUND]),
-                                  (self.num_modules, 4)),
-                    high=np.resize(np.array([NUM_MODULES_UPPER_BOUND, MODULE_SIZE_UPPER_BOUND,
+                    high=np.array([NUM_MODULES_UPPER_BOUND, MODULE_SIZE_UPPER_BOUND,
                                    MODULE_MEMORY_REQUIRED_UPPER_BOUND, MODULE_DATA_SIZE_UPPER_BOUND]),
-                                   (self.num_modules, 4)),
-                    shape=(self.num_modules, 4),
+                    shape=(4,),
                     dtype=np.int64
                 ),
                 "nodes" : gym.spaces.Box(
@@ -107,7 +105,16 @@ class ApplicationPlacementEnv(gym.Env):
                     dtype=np.int64
                 )
             }
-        )
+        )"""
+        low=np.concatenate((np.array([0, MODULE_SIZE_LOWER_BOUND, MODULE_MEMORY_REQUIRED_LOWER_BOUND,
+            MODULE_DATA_SIZE_LOWER_BOUND])[None, :], np.resize(np.array([0, NODE_SPEED_LOWER_BOUND,
+            NODE_BANDWIDTH_LOWER_BOUND, NODE_MEMORY_LOWER_BOUND]), (self.num_nodes, 4))))
+        high=np.concatenate((np.array([NUM_MODULES_UPPER_BOUND, MODULE_SIZE_UPPER_BOUND,
+            MODULE_MEMORY_REQUIRED_UPPER_BOUND, MODULE_DATA_SIZE_UPPER_BOUND])[None, :],
+            np.resize(np.array([NUM_NODES_UPPER_BOUND, NODE_SPEED_UPPER_BOUND, NODE_BANDWIDTH_UPPER_BOUND,
+            NODE_MEMORY_UPPER_BOUND]), (self.num_nodes, 4))))
+        self.observation_space = gym.spaces.Box(low, high, shape=(self.num_nodes + 1, 4), dtype=np.int64)
+
         # The action taken by an agent will be placing a specific module on
         # a specific node for processing.
         self.action_space = gym.spaces.Box(
@@ -263,11 +270,8 @@ class ApplicationPlacementEnv(gym.Env):
         for i, (k, v) in enumerate(self.nodes.items()):
             nodes[i] = [k, v.processing_speed, v.bandwidth, v.memory]
 
-        return {
-            "modules": modules,
-            "nodes": nodes
-        }
-    
+        return np.concatenate((modules[None, 0], nodes))
+
     def _generate_modules(self, num_modules):
         """Generates a dictionary of Application_Module objects each with randomly
         generated properties."""
