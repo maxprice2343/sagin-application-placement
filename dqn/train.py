@@ -2,6 +2,7 @@
 gameplay experiences and using them to improve results."""
 
 import gymnasium as gym
+import environment
 from dqn_agent import DQNAgent
 from replay_buffer import ReplayBuffer
 
@@ -26,7 +27,7 @@ def train_model(max_episodes=10000):
     env.close()
 
 def collect_experiences(env, agent, buffer):
-    state = env.reset()
+    state, _ = env.reset()
     done = False
     while not done:
         action = agent.collect_policy(state)
