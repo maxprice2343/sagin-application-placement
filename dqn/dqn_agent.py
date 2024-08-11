@@ -14,7 +14,7 @@ class DQNAgent:
         """Constructs and returns a Sequential model with 3 layers"""
         model = keras.Sequential(
             [
-                keras.layers.Input(64),
+                keras.layers.Input((64,)),
                 keras.layers.Dense(32, activation="relu", name="layer1"),
                 keras.layers.Dense(15, activation="linear", name="output layer")
             ]
