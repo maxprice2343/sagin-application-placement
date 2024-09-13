@@ -2,6 +2,7 @@
 gameplay experiences and using them to improve results."""
 
 import gymnasium as gym
+from gymnasium.wrappers.flatten_observation import FlattenObservation
 import environment
 from dqn_agent import DQNAgent
 from replay_buffer import ReplayBuffer
@@ -9,7 +10,8 @@ from replay_buffer import ReplayBuffer
 def train_model(max_episodes=10000):
     agent = DQNAgent()
     buffer = ReplayBuffer()
-    env = gym.make("ApplicationPlacementEnv-v0")
+    env = gym.make("ApplicationPlacementEnv-v0", render_mode="human")
+    env = FlattenObservation(env)
 
     for _ in range(100):
         collect_experiences(env, agent, buffer)

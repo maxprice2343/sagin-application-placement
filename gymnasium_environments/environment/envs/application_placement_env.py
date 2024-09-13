@@ -122,7 +122,7 @@ class ApplicationPlacementEnv(gym.Env):
             high = np.array([NUM_MODULES_UPPER_BOUND, NUM_NODES_UPPER_BOUND])
         )
 
-        self.window_size = 512
+        self.window_size = 1024 
 
         # Ensures the provided render mode is None (i.e. no rendering will happen)
         # or it is one of the accepted render methods
@@ -143,9 +143,10 @@ class ApplicationPlacementEnv(gym.Env):
         return obs, {}
     
     def _first_module(self):
-        """Returns the first module from the dictionary"""
+        """Returns the first module that hasn't been processed yet"""
         for (k, v) in self.modules.items():
-            return k, v
+            if not v.processing:
+                return k, v
         return None
 
     def step(self, action: int):
@@ -156,7 +157,11 @@ class ApplicationPlacementEnv(gym.Env):
             module_num, module = first_module
             node = self.nodes[action]
 
+            if self.render_mode == "human":
+                self._render_frame()
+
             # Adding the module to the node's processing list
+            print(f"Adding module {module_num} to node {action}")
             node.add_module(module_num, module)
             module.start_processing()
             
@@ -187,9 +192,13 @@ class ApplicationPlacementEnv(gym.Env):
             # MAXIMUM_MODULE_PROCESSING_TIME
             # This ensures that reducing processing speed and reducing resource
             # overhead are considered equal goals.
+            if self.render_mode == "human":
+                self._render_frame()
+
             reward = (MAXIMUM_MODULE_PROCESSING_TIME - processing_time) + MAXIMUM_MODULE_PROCESSING_TIME * (1 - memory_used)
             node.remove_module(module_num)
             module.finish_processing()
+            print(f"Removing module {module_num} from node {action}")
 
             observation = self._get_obs()
 
@@ -232,19 +241,26 @@ class ApplicationPlacementEnv(gym.Env):
         module_radius = 10
         module_x = 25
         module_colour = (37, 58, 76) #dark blue
+        base_x = 40
+        num_modules_fitting_in_window = (int)((self.window_size - base_x) / (module_radius * 2 + 5))
         for i, (k, v) in enumerate(self.modules.items()):
             if v.processing == False:
-                pg.draw.circle(canvas, module_colour, (module_x, 40 * (k+1)), module_radius)
+                module_y = base_x + (k * 25)
+                if k + 1 > num_modules_fitting_in_window:
+                    module_y = base_x + ((k + 1 - num_modules_fitting_in_window) * 25)
+                    module_x = 55
+                pg.draw.circle(canvas, module_colour, (module_x, module_y), module_radius)
         
         node_x = self.window_size - 112
         node_colour = (226, 131, 89) #orange
         node_dims = (40, 20)
         padding = 5
         for i, (k, v) in enumerate(self.nodes.items()):
-            pg.draw.rect(canvas, node_colour, pg.Rect((node_x, 40 * (i+1)), node_dims))
+            node_y = 40 * (i + 1)
+            pg.draw.rect(canvas, node_colour, pg.Rect((node_x, node_y), node_dims))
             if len(self.nodes[k].modules) > 0:
-                for j, (kn, vn) in enumerate(self.nodes[k].modules.items()):
-                    pg.draw.circle(canvas, module_colour, (node_x * (j+1) + node_dims[0] + module_radius + padding, 45 * (i+1)), module_radius)
+                for j in range(len((self.nodes[k].modules.items()))):
+                    pg.draw.circle(canvas, module_colour, (node_x * (j+1) + node_dims[0] + module_radius + padding, node_y + module_radius), module_radius)
 
         if self.render_mode == "human":
             self.window.blit(canvas, canvas.get_rect()) # type: ignore
