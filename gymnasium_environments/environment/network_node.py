@@ -1,9 +1,11 @@
 from environment.application_module import Application_Module
+import queue
+import asyncio
 
 class Network_Node:
     """This class represents a network node. It is capable of processing
     instructions."""
-    def __init__(self, processing_speed, bandwidth, memory):
+    def __init__(self, processing_speed : int, bandwidth : int, memory : int, max_modules : int):
         # The processing speed of the node in Bytes Per Second
         self.processing_speed = processing_speed
         # The bandwidth available to the node in Bytes Per Second
@@ -11,14 +13,17 @@ class Network_Node:
         # The memory of the node in Bytes
         self.memory = memory
 
-        self.modules = {}
+        self.modules = queue.Queue(max_modules)
     
-    def add_module(self, module_id, m : Application_Module):
-        """Adds a new module into this node's dictionary of modules being
-        processed"""
-        self.modules[module_id] = m
+    async def add_module(self, new_module : Application_Module) -> None:
+        """Adds a new module into this node's queue of modules to be processed.
+        Contains a loop that continuously processes modules in the queue until the
+        queue is empty."""
 
-    def remove_module(self, module_id):
-        """Removes a module from this node's dictionary of modules being
-        processed"""
-        del self.modules[module_id]
+        self.modules.put(new_module)
+
+        while not self.modules.empty():
+            module_to_process = self.modules.get()
+            module_to_process.start_processing()
+            await asyncio.sleep(module_to_process.num_instructions / self.processing_speed)
+            module_to_process.finish_processing()

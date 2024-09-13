@@ -329,5 +329,5 @@ class ApplicationPlacementEnv(gym.Env):
             )
             # Creates the new node using the properties and appends it to
             # a dictionary
-            nodes[i] = Network_Node(processing_speed, bandwidth, memory)
+            nodes[i] = Network_Node(processing_speed, bandwidth, memory, NUM_MODULES_UPPER_BOUND)
         return nodes
