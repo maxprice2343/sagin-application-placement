@@ -2,6 +2,8 @@ import numpy as np
 import tensorflow as tf
 import keras
 
+NUM_INPUT = 24
+NUM_OUTPUT = 5
 
 class DQNAgent:
     """The agent that learns to make choices in the environment."""
@@ -14,9 +16,9 @@ class DQNAgent:
         """Constructs and returns a Sequential model with 3 layers"""
         model = keras.Sequential(
             [
-                keras.layers.Input((64,)),
-                keras.layers.Dense(32, activation="relu", name="layer1"),
-                keras.layers.Dense(15, activation="linear", name="output layer")
+                keras.layers.Input((NUM_INPUT,)),
+                keras.layers.Dense(12, activation="relu", name="layer1"),
+                keras.layers.Dense(NUM_OUTPUT, activation="linear", name="output layer")
             ]
         )
         model.compile(
@@ -39,7 +41,7 @@ class DQNAgent:
         return action
     
     def random_policy(self, state):
-        return np.random.randint(0, 15)
+        return np.random.randint(0, NUM_OUTPUT - 1)
 
     def update_target_network(self):
         """Updates the target DQN's weights with the main DQN's weights"""

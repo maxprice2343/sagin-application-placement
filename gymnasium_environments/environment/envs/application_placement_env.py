@@ -301,7 +301,7 @@ class ApplicationPlacementEnv(gym.Env):
         for i, (k, v) in enumerate(self.nodes.items()):
             nodes[i] = [k, v.processing_speed, v.bandwidth, v.available_memory]
 
-        return np.concatenate((modules[None, 0], nodes))
+        return np.concatenate((modules[None, 0], nodes)).flatten()
 
     def _generate_modules(self, num_modules):
         """Generates a dictionary of Application_Module objects each with randomly
