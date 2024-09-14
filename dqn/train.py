@@ -1,22 +1,23 @@
 """Trains the DQN agent by running it within the environment, storing the
 gameplay experiences and using them to improve results."""
 
+from environment.envs.application_placement_env import ApplicationPlacementEnv
 import gymnasium as gym
 from gymnasium.wrappers.flatten_observation import FlattenObservation
 import environment
 from dqn_agent import DQNAgent
 from replay_buffer import ReplayBuffer
+import asyncio
 
 def train_model(max_episodes=10000):
     agent = DQNAgent()
     buffer = ReplayBuffer()
-    env = gym.make("ApplicationPlacementEnv-v0", render_mode="human")
-    env = FlattenObservation(env)
+    env = ApplicationPlacementEnv(render_mode="human")
 
     for _ in range(100):
-        collect_experiences(env, agent, buffer)
+        asyncio.run(collect_experiences(env, agent, buffer))
     for episode_num in range(max_episodes):
-        collect_experiences(env, agent, buffer)
+        asyncio.run(collect_experiences(env, agent, buffer))
         experience_batch = buffer.sample_batch()
         loss = agent.train(experience_batch)
         avg_reward = evaluate_training_result(env, agent)
@@ -28,18 +29,18 @@ def train_model(max_episodes=10000):
 
     env.close()
 
-def collect_experiences(env, agent, buffer):
+async def collect_experiences(env, agent, buffer):
     state, _ = env.reset()
     done = False
     while not done:
         action = agent.collect_policy(state)
-        next_state, reward, done, _, _ = env.step(action)
+        next_state, reward, done, _, _ = await env.step(action)
         if done:
             reward = -1.0
         buffer.store_experience(state, next_state, reward, action, done)
         state = next_state
 
-def evaluate_training_result(env, agent):
+async def evaluate_training_result(env, agent):
     reward_total = 0.0
     num_episodes = 10
 
@@ -49,7 +50,7 @@ def evaluate_training_result(env, agent):
         episode_reward = 0.0
         while not done:
             action = agent.policy()
-            next_state, reward, done, _, _ = env.step(action)
+            next_state, reward, done, _, _ = await env.step(action)
             episode_reward += reward
             state = next_state
         reward_total += episode_reward
