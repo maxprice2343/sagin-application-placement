@@ -1,16 +1,10 @@
-from ast import Module
-from curses import beep
 import random
 import numpy as np
 import gymnasium as gym
 import pygame as pg
 import asyncio
-
-#from gymnasium_environments.environment.application_module import Application_Module
 from environment.application_module import Application_Module
 from environment.network_node import Network_Node
-
-#from gymnasium_environments.environment.network_node import Network_Node
 
 # These represent the lower and upper bounds on the number of
 # activity modules in the environment
@@ -39,8 +33,8 @@ NODE_MEMORY_UPPER_BOUND = 15000000
 
 # These represent the lower and upper bounds on the size of activity
 # modules in # of Instructions
-MODULE_SIZE_LOWER_BOUND = 15000000000
-MODULE_SIZE_UPPER_BOUND = 25000000000
+MODULE_SIZE_LOWER_BOUND = 1500000000
+MODULE_SIZE_UPPER_BOUND = 2500000000
 
 # These represent the lower and upper bounds on the required memory
 # of acitivy modules in Bytes
@@ -62,23 +56,9 @@ class ApplicationPlacementEnv(gym.Env):
     creates the nodes and modules and allows for modules to be placed
     on nodes for processing. It also enforces some constraints."""
 
-    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 120}
 
     def __init__(self, render_mode=None):
-        # The observation space is a dictionary containing a list of modules
-        # and nodes
-        # Modules:
-        # -----------------------------------------------------------------------
-        # Module 1 Num Instructions, Module 1 Memory Required, Module 1 Data Size
-        # Module 2 Num Instructions, Module 2 Memory Required, Module 2 Data Size
-        # ....
-        # -----------------------------------------------------------------------
-        # Nodes:
-        # -----------------------------------------------------------------------
-        # Node 1 Speed, Node 1 Bandwidth, Node 1 Memory
-        # Node 2 Speed, Node 2 Bandwidth, Node 2 Memory
-        # ....
-        # -----------------------------------------------------------------------
         self.num_modules = random.randint(
             NUM_MODULES_LOWER_BOUND, NUM_MODULES_UPPER_BOUND
         )
@@ -125,7 +105,7 @@ class ApplicationPlacementEnv(gym.Env):
 
         self.action_space = gym.spaces.Discrete(1, 0)
 
-        self.window_size = 1024 
+        self.window_size = 1024
 
         # Ensures the provided render mode is None (i.e. no rendering will happen)
         # or it is one of the accepted render methods
@@ -145,57 +125,68 @@ class ApplicationPlacementEnv(gym.Env):
         if self.render_mode == "human":
             self._render_frame()
 
-        obs = self._get_obs()
-        return obs, {}
+        return self._get_obs(), {}
     
     def _first_module(self):
-        """Returns the first module that hasn't been processed yet"""
-        for (k, v) in self.modules.items():
+        """Returns the first module that hasn't started being processed yet"""
+        for (_, v) in self.modules.items():
             if not v.processing:
-                return k, v
+                return v
         return None
 
-    def step(self, action: int):
+    async def step(self, action: int):
         """Moves the environment forward by 1 step (assigning a module to a
         node for processing)"""
         first_module = self._first_module()
         observation = None
         reward = None
 
+        # The environment terminates if all modules have finished being
+        # processed
         terminated = True
-        for k, v in self.modules.items():
+        for _, v in self.modules.items():
             if not v.done:
                 terminated = False
                 break
+        
+        if self.render_mode == "human":
+            self._render_frame()
 
-        # If any module is not yet finished processing then the environment
-        # can't terminate yet
         if first_module is not None:
-            module_num, module = first_module
+            module = first_module
             node = self.nodes[action]
 
             # Adding the module to the node's processing queue
-            print(f"Adding module {module_num} to node {action}")
-            asyncio.run(node.add_module(module))
-                      
+            # asyncio.create_task causes node.add_module to be added to the
+            # event loop for processing (at some point, not immediately)
+            asyncio.create_task(node.add_module(module))
+            # This line allows the event loop to be checked for pending tasks.
+            # The effect of these 2 lines is that node.add_module is added to
+            # the event loop, but the step function doesn't need to wait for it
+            # to finish before continuing.
+            await asyncio.sleep(0)
+
+            if self.render_mode == "human":
+                self._render_frame()
             
             # Calculates the processing time of the module
             processing_time = module.num_instructions / node.processing_speed
             # Calculates the resource overhead of the current module
             resource_overhead = module.memory_required / node.available_memory
             # Calculates the reward for the processing of this module
-            # The first part of the calculation incentivizes reduced processing
-            # time (it will be between 0 and MAXIMUM_MODULE_PROCESSING_TIME)
-            # The second part incentivizes reduced resource overhead. It uses
-            # MAXIMUM_MODULE_PROCESSING_TIME to normalize the value (1 - memory_used)
-            # which is between 0 and 1, to make it between 0 and
-            # MAXIMUM_MODULE_PROCESSING_TIME
-            # This ensures that reducing processing speed and reducing resource
-            # overhead are considered equal goals.
-
             reward = (MAXIMUM_MODULE_PROCESSING_TIME - processing_time) + MAXIMUM_MODULE_PROCESSING_TIME * (1 - resource_overhead)
 
             observation = self._get_obs()
+        else:
+            # If there are no modules left, call asyncio.sleep(0) to allow the
+            # event loop to be checked for pending tasks.
+            await asyncio.sleep(0)
+            # No reward is given here because the agent is not taking any actions.
+            # TODO: This may cause problems with the training if the agent begins
+            # to associate random actions with reward values. May have to make it
+            # so agent stops calling step once all modules are assigned, but
+            # environment can't terminate yet. How???
+            reward = 0
 
         if self.render_mode == "human":
             self._render_frame()
@@ -268,6 +259,7 @@ class ApplicationPlacementEnv(gym.Env):
             node_y = base_y + (node_dims[1] + node_padding) * i
             pg.draw.rect(canvas, node_colour, pg.Rect((node_x, node_y), node_dims))
             # Draws the modules that are currently assigned to each node.
+            #print(f"Node {k} has {len(v.modules)} modules")
             if len(v.modules) > 0:
                 for j in range(len(v.modules)):
                     pg.draw.circle(
@@ -288,6 +280,7 @@ class ApplicationPlacementEnv(gym.Env):
             )
 
     def close(self):
+        """Closes all open resources once the environment terminates."""
         if self.window is not None:
             pg.display.quit()
             pg.quit()
