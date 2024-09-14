@@ -4,6 +4,7 @@ import random
 import numpy as np
 import gymnasium as gym
 import pygame as pg
+import asyncio
 
 #from gymnasium_environments.environment.application_module import Application_Module
 from environment.application_module import Application_Module
@@ -13,13 +14,13 @@ from environment.network_node import Network_Node
 
 # These represent the lower and upper bounds on the number of
 # activity modules in the environment
-NUM_MODULES_LOWER_BOUND = 50
-NUM_MODULES_UPPER_BOUND = 50
+NUM_MODULES_LOWER_BOUND = 15
+NUM_MODULES_UPPER_BOUND = 15
 
 # These represent the lower and upper bounds on the number of
 # network nodes in the environment
-NUM_NODES_LOWER_BOUND = 15
-NUM_NODES_UPPER_BOUND = 15
+NUM_NODES_LOWER_BOUND = 5
+NUM_NODES_UPPER_BOUND = 5
 
 # These represent the lower and upper bounds on the processing speed
 # of network nodes in Instructions Per Second (IPS)
@@ -38,8 +39,8 @@ NODE_MEMORY_UPPER_BOUND = 15000000
 
 # These represent the lower and upper bounds on the size of activity
 # modules in # of Instructions
-MODULE_SIZE_LOWER_BOUND = 1500000000
-MODULE_SIZE_UPPER_BOUND = 2500000000
+MODULE_SIZE_LOWER_BOUND = 15000000000
+MODULE_SIZE_UPPER_BOUND = 25000000000
 
 # These represent the lower and upper bounds on the required memory
 # of acitivy modules in Bytes
@@ -117,10 +118,12 @@ class ApplicationPlacementEnv(gym.Env):
 
         # The action taken by an agent will be placing a specific module on
         # a specific node for processing.
-        self.action_space = gym.spaces.Box(
+        """self.action_space = gym.spaces.Box(
             low = np.array([NUM_MODULES_LOWER_BOUND, NUM_NODES_LOWER_BOUND]),
             high = np.array([NUM_MODULES_UPPER_BOUND, NUM_NODES_UPPER_BOUND])
-        )
+        )"""
+
+        self.action_space = gym.spaces.Discrete(1, 0)
 
         self.window_size = 1024 
 
@@ -139,6 +142,9 @@ class ApplicationPlacementEnv(gym.Env):
         self.modules = self._generate_modules(self.num_modules)
         self.nodes = self._generate_nodes(self.num_nodes)
 
+        if self.render_mode == "human":
+            self._render_frame()
+
         obs = self._get_obs()
         return obs, {}
     
@@ -153,36 +159,30 @@ class ApplicationPlacementEnv(gym.Env):
         """Moves the environment forward by 1 step (assigning a module to a
         node for processing)"""
         first_module = self._first_module()
+        observation = None
+        reward = None
+
+        terminated = True
+        for k, v in self.modules.items():
+            if not v.done:
+                terminated = False
+                break
+
+        # If any module is not yet finished processing then the environment
+        # can't terminate yet
         if first_module is not None:
             module_num, module = first_module
             node = self.nodes[action]
 
-            if self.render_mode == "human":
-                self._render_frame()
-
-            # Adding the module to the node's processing list
+            # Adding the module to the node's processing queue
             print(f"Adding module {module_num} to node {action}")
-            node.add_module(module_num, module)
-            module.start_processing()
-            
-            # If any module is not yet finished processing then the environment
-            # can't terminate yet
-            terminated = True
-            for k, v in self.modules.items():
-                if not v.done:
-                    terminated = False
-                    break
+            asyncio.run(node.add_module(module))
+                      
             
             # Calculates the processing time of the module
             processing_time = module.num_instructions / node.processing_speed
-            # Calculates the memory already used by other modules deployed on the
-            # node
-            memory_used = 0
-            for k, v in node.modules.items():
-                if k != module_num:
-                    memory_used += v.memory_required
             # Calculates the resource overhead of the current module
-            resource_overhead = module.memory_required / (node.memory - memory_used)
+            resource_overhead = module.memory_required / node.available_memory
             # Calculates the reward for the processing of this module
             # The first part of the calculation incentivizes reduced processing
             # time (it will be between 0 and MAXIMUM_MODULE_PROCESSING_TIME)
@@ -192,18 +192,13 @@ class ApplicationPlacementEnv(gym.Env):
             # MAXIMUM_MODULE_PROCESSING_TIME
             # This ensures that reducing processing speed and reducing resource
             # overhead are considered equal goals.
-            if self.render_mode == "human":
-                self._render_frame()
 
-            reward = (MAXIMUM_MODULE_PROCESSING_TIME - processing_time) + MAXIMUM_MODULE_PROCESSING_TIME * (1 - memory_used)
-            node.remove_module(module_num)
-            module.finish_processing()
-            print(f"Removing module {module_num} from node {action}")
+            reward = (MAXIMUM_MODULE_PROCESSING_TIME - processing_time) + MAXIMUM_MODULE_PROCESSING_TIME * (1 - resource_overhead)
 
             observation = self._get_obs()
 
-            if self.render_mode == "human":
-                self._render_frame()
+        if self.render_mode == "human":
+            self._render_frame()
 
         return observation, reward, terminated, False, {}
     
@@ -219,7 +214,7 @@ class ApplicationPlacementEnv(gym.Env):
             pg.init()
             pg.display.init()
             pg.font.init()
-            self.text_font = pg.font.SysFont("Arial", 20)
+            #self.text_font = pg.font.SysFont("Arial", 20)
             self.window = pg.display.set_mode((self.window_size, self.window_size))
 
         if self.clock is None and self.render_mode == "human":
@@ -229,38 +224,58 @@ class ApplicationPlacementEnv(gym.Env):
         canvas = pg.Surface((self.window_size, self.window_size))
         canvas.fill((255,255,255))
 
-        #TODO: Add variables to store window size, etc.
-
-        module_text_surface = self.text_font.render("Modules:", False, (0,0,0))
+        """module_text_surface = self.text_font.render("Modules:", False, (0,0,0))
         canvas.blit(module_text_surface, (10, 10))
 
         node_text_surface = self.text_font.render("Nodes:", False, (0,0,0))
-        canvas.blit(node_text_surface, (self.window_size - 112, 10))
+        canvas.blit(node_text_surface, (self.window_size - 112, 10))"""
 
         #TODO: Add labels to illustrations
+
+        #============================ Drawing Modules ==============================#
         module_radius = 10
-        module_x = 25
-        module_colour = (37, 58, 76) #dark blue
-        base_x = 40
-        num_modules_fitting_in_window = (int)((self.window_size - base_x) / (module_radius * 2 + 5))
+        module_padding = 5 # Distance between modules
+        base_x = 2 * module_radius + module_padding # X-Coordinate of first module
+        base_y = base_x # Y-Coordinate of first module
+        module_colour = (37, 58, 76) # Dark blue
+        column = 0 # Stores the column of the current module
+        row = 0 # Stores the row of the current module
         for i, (k, v) in enumerate(self.modules.items()):
+            # Iterates through all modules and draws them if they haven't begun
+            # processing
             if v.processing == False:
-                module_y = base_x + (k * 25)
-                if k + 1 > num_modules_fitting_in_window:
-                    module_y = base_x + ((k + 1 - num_modules_fitting_in_window) * 25)
-                    module_x = 55
+                module_y = base_y + base_y * row
+                module_x = base_x + column * (module_radius * 2 + module_padding)
+                # If the module has reached the bottom of the window, increment the
+                # column
+                if module_y + module_radius + module_padding > self.window_size:
+                    row = 0
+                    column += 1
+                    module_y = base_y + base_y * row
+                    module_x = base_x + column * (module_radius * 2 + module_padding)
+                
                 pg.draw.circle(canvas, module_colour, (module_x, module_y), module_radius)
+                row += 1
         
-        node_x = self.window_size - 112
-        node_colour = (226, 131, 89) #orange
-        node_dims = (40, 20)
-        padding = 5
+        #============================ Drawing Nodes ==============================#
+        node_x = self.window_size - 712 # Constant X-Coordinate for all nodes
+        node_colour = (226, 131, 89) # Orange
+        node_dims = (40, 20) # Length and height (respectively) of nodes
+        node_padding = 5 # Distance between nodes
+        base_y = node_padding # Y-Coordinate of first node
         for i, (k, v) in enumerate(self.nodes.items()):
-            node_y = 40 * (i + 1)
+            # Iterates through all nodes and draws them
+            node_y = base_y + (node_dims[1] + node_padding) * i
             pg.draw.rect(canvas, node_colour, pg.Rect((node_x, node_y), node_dims))
-            if len(self.nodes[k].modules) > 0:
-                for j in range(len((self.nodes[k].modules.items()))):
-                    pg.draw.circle(canvas, module_colour, (node_x * (j+1) + node_dims[0] + module_radius + padding, node_y + module_radius), module_radius)
+            # Draws the modules that are currently assigned to each node.
+            if len(v.modules) > 0:
+                for j in range(len(v.modules)):
+                    pg.draw.circle(
+                        canvas,
+                        module_colour,
+                        (node_x + node_dims[0] + (module_radius + node_padding) * ((j + 1) * 2), node_y + module_radius),
+                        module_radius
+                    )
 
         if self.render_mode == "human":
             self.window.blit(canvas, canvas.get_rect()) # type: ignore
@@ -284,7 +299,7 @@ class ApplicationPlacementEnv(gym.Env):
             modules[i] = [k, v.num_instructions, v.memory_required, v.data_size]
         nodes = np.ndarray(shape=(len(self.nodes), 4), dtype=int)
         for i, (k, v) in enumerate(self.nodes.items()):
-            nodes[i] = [k, v.processing_speed, v.bandwidth, v.memory]
+            nodes[i] = [k, v.processing_speed, v.bandwidth, v.total_memory] #TODO: Consider available memory instead?
 
         return np.concatenate((modules[None, 0], nodes))
 
