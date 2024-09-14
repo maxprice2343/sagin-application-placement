@@ -20,7 +20,7 @@ class Network_Node:
         # Indicates whet
         self.processing = False
     
-    async def add_module(self, new_module : Application_Module) -> None:
+    async def add_module(self, new_module : Application_Module) -> int:
         """Adds a new module into this node's queue of modules to be processed."""
 
         # Checks that the node has the memory available to store this module
@@ -29,11 +29,15 @@ class Network_Node:
             # being processed
             new_module.start_processing()
             self.modules.appendleft(new_module)
+            self.available_memory -= new_module.memory_required
 
-        # If the node is not already processing, calls the function to begin
-        # processing modules
-        if not self.processing:
-            await self.process_modules()
+            # If the node is not already processing, calls the function to begin
+            # processing modules
+            if not self.processing:
+                await self.process_modules()
+
+            return 1
+        return 0
 
     async def process_modules(self):
         """Begins processing modules in the queue until there are no more."""
@@ -49,7 +53,7 @@ class Network_Node:
             # Removes the finished module from the queue
             self.modules.pop()
             # Frees up the memory occupied by the recently finished module
-            self.available_memory -= module_to_process.memory_required
+            self.available_memory += module_to_process.memory_required
         # If the node finishes all the modules in its queue then it is no longer
         # processing
         self.processing = False

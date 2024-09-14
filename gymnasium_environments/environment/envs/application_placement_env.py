@@ -159,7 +159,14 @@ class ApplicationPlacementEnv(gym.Env):
             # Adding the module to the node's processing queue
             # asyncio.create_task causes node.add_module to be added to the
             # event loop for processing (at some point, not immediately)
-            asyncio.create_task(node.add_module(module))
+            task = asyncio.create_task(node.add_module(module))
+
+            # If the task is done already, and the result is 0, this means that
+            # a module was assigned to a node with insufficient memory for it,
+            # which incurs a negative reward
+            if task.done():
+                if not task.result():
+                    result = -1
             # This line allows the event loop to be checked for pending tasks.
             # The effect of these 2 lines is that node.add_module is added to
             # the event loop, but the step function doesn't need to wait for it
@@ -292,7 +299,7 @@ class ApplicationPlacementEnv(gym.Env):
             modules[i] = [k, v.num_instructions, v.memory_required, v.data_size]
         nodes = np.ndarray(shape=(len(self.nodes), 4), dtype=int)
         for i, (k, v) in enumerate(self.nodes.items()):
-            nodes[i] = [k, v.processing_speed, v.bandwidth, v.total_memory] #TODO: Consider available memory instead?
+            nodes[i] = [k, v.processing_speed, v.bandwidth, v.available_memory]
 
         return np.concatenate((modules[None, 0], nodes))
 
