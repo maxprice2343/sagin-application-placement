@@ -1,7 +1,10 @@
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+
 import tensorflow as tf
 import keras
 
-NUM_INPUT = 24
+NUM_INPUT = 12
 NUM_OUTPUT = 5
 
 class DuelingDQN(keras.Model):

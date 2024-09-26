@@ -3,7 +3,7 @@ from replay_buffer import ReplayBuffer
 import numpy as np
 import keras
 
-OBSERVATION_SPACE = 24
+OBSERVATION_SPACE = 12
 ACTION_SPACE = 5
 
 class DQNAgent:
@@ -32,8 +32,7 @@ class DQNAgent:
         else:
             actions = self.q_net.advantage(np.array([state]))
             action = np.argmax(actions)
-            assert isinstance(action, int)
-            return action
+            return int(action)
         
     def update_memory(self, state, action, reward, next_state, done):
         self.memory.store_experience(state, action, reward, next_state, done)

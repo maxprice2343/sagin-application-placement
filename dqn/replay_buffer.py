@@ -31,7 +31,6 @@ class ReplayBuffer:
         self.state_memory[idx] = state
         self.action_memory[idx] = action
         self.reward_memory[idx] = reward
-        print(f"Next state: {next_state}")
         self.next_state_memory[idx] = next_state
         self.done_memory[idx] = 1 - done
         # Increments the pointer variable

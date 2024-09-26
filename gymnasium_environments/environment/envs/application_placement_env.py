@@ -292,17 +292,6 @@ class ApplicationPlacementEnv(gym.Env):
             pg.display.quit()
             pg.quit()
 
-    def _get_obs(self):
-        """Translates the environment's current state into an observation"""
-        modules = np.ndarray(shape=(len(self.modules), 4), dtype=int)
-        for i, (k, v) in enumerate(self.modules.items()):
-            modules[i] = [k, v.num_instructions, v.memory_required, v.data_size]
-        nodes = np.ndarray(shape=(len(self.nodes), 4), dtype=int)
-        for i, (k, v) in enumerate(self.nodes.items()):
-            nodes[i] = [k, v.processing_speed, v.bandwidth, v.available_memory]
-
-        return np.concatenate((modules[None, 0], nodes)).flatten()
-
     def _generate_modules(self, num_modules):
         """Generates a dictionary of Application_Module objects each with randomly
         generated properties."""
@@ -346,3 +335,28 @@ class ApplicationPlacementEnv(gym.Env):
             # a dictionary
             nodes[i] = Network_Node(processing_speed, bandwidth, memory, NUM_MODULES_UPPER_BOUND)
         return nodes
+    
+    def _get_obs(self):
+        """Translates the environment's current state into an observation"""
+        first_module = self._first_module()
+        if first_module is not None:
+            module = first_module
+            module_data = np.array([
+                self.normalize(module.num_instructions, int(MODULE_SIZE_LOWER_BOUND), int(MODULE_SIZE_UPPER_BOUND)),
+                self.normalize(module.memory_required, int(MODULE_MEMORY_REQUIRED_LOWER_BOUND), int(MODULE_MEMORY_REQUIRED_UPPER_BOUND))
+            ])
+        else:
+            module_data = np.array([0,0])
+
+        nodes = np.ndarray(shape=(len(self.nodes), 2), dtype=float)
+        for i, (_, v) in enumerate(self.nodes.items()):
+            nodes[i] = [
+                self.normalize(v.processing_speed, int(NODE_SPEED_LOWER_BOUND), int(NODE_SPEED_UPPER_BOUND)),
+                self.normalize(v.available_memory, 0, int(NODE_MEMORY_UPPER_BOUND))
+            ]
+
+        return np.concatenate((module_data[None, :], nodes)).flatten()
+    
+    @staticmethod
+    def normalize(val, min_val, max_val):
+        return (val - min_val) / (max_val - min_val)

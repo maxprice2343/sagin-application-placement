@@ -8,26 +8,33 @@ import environment
 from dqn_agent import DQNAgent
 from replay_buffer import ReplayBuffer
 import asyncio
+import keras
 
-async def train():
+MODEL_PATH = "model.keras"
+
+async def train(render: bool):
     agent = DQNAgent()
-    env = ApplicationPlacementEnv(render_mode="human")
-    steps = 400
+    if render:
+        env = ApplicationPlacementEnv(render_mode="human")
+    else:
+        env = ApplicationPlacementEnv()
+    steps = 30
     for s in range(steps):
+        print(f"Training Episode: {s + 1}")
         done = False
         state, _ = env.reset()
         total_reward = 0
         while not done:
             action = agent.act(state)
             next_state, reward, done, _, _ = await env.step(action)
-            #if next_state is not None:
-            agent.update_memory(state, action, reward, next_state, done)
-            agent.train()
-            state = next_state
-            total_reward += reward
+            if next_state is not None:
+                agent.update_memory(state, action, reward, next_state, done)
+                agent.train()
+                state = next_state
+                total_reward += reward
 
-            if done:
-                print(f"Total reward after {s} episodes is {total_reward} and epsilon is {agent.epsilon}")
+        print(f"Total reward after {s} episodes is {total_reward} and epsilon is {agent.epsilon}")
+    keras.models.save_model(agent.q_net, MODEL_PATH)
 
 if __name__ == '__main__':
-    asyncio.run(train())
+    asyncio.run(train(render=True))
