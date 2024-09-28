@@ -5,9 +5,8 @@ from dqn_agent import DQNAgent
 import sys
 import keras
 
-async def evaluate_training_result(agent: DQNAgent, rendering:bool = True) -> float:
+async def evaluate_training_result(agent: DQNAgent, rendering:bool, num_episodes: int) -> float:
     reward_total = 0.0
-    num_episodes = 10
     if rendering:
         env = ApplicationPlacementEnv(render_mode="human")
     else:
@@ -26,14 +25,16 @@ async def evaluate_training_result(agent: DQNAgent, rendering:bool = True) -> fl
     avg_reward = reward_total / num_episodes
     return avg_reward
 
-def train():
-    if len(sys.argv) > 1:
-        assert isinstance(sys.argv[1], str)
+if __name__ == "__main__":
+    if len(sys.argv) == 4:
+        render = sys.argv[2]
+        assert render == "h" or render == "n", "Render mode must be 'h' (human) or 'n' (none)"
+        render = True if render == "h" else False
+        num_episodes = int(sys.argv[3])
+        assert num_episodes > 0, "Need at least 1 episode"
+
         dqn = keras.models.load_model(sys.argv[1])
         agent = DQNAgent(dqn)
-        asyncio.run(evaluate_training_result(agent, rendering=True))
+        asyncio.run(evaluate_training_result(agent, render, num_episodes))
     else:
-        print("Need path to model")        
-
-if __name__ == "__main__":
-    train()
+        print("Please provide arguments: <Model path> <Render mode> <# Episodes>")
