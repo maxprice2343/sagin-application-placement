@@ -5,7 +5,7 @@ import random
 class ReplayBuffer:
     """Stores state transitions to allow for training the dqn."""
     
-    def __init__(self, observation_space, buffer_size=1_000_000):
+    def __init__(self, observation_space, buffer_size=100_000):
         self.buffer_size = buffer_size
         self.state_memory = np.zeros(
             (self.buffer_size, observation_space),
@@ -17,7 +17,7 @@ class ReplayBuffer:
             (self.buffer_size, observation_space),
             dtype=np.int32
         )
-        self.done_memory = np.zeros(self.buffer_size, dtype=np.int32)
+        self.done_memory = np.zeros(self.buffer_size, dtype=np.int8)
         self.pointer = 0
 
     def store_experience(self, state, action, reward, next_state, done):
@@ -36,16 +36,27 @@ class ReplayBuffer:
 
     def sample_batch(self, batch_size=64):
         """Samples a batch of experiences from the buffer."""
+        # Before the buffer gets completely full, we want to only sample from
+        # the part of the buffer that has been filled (up to self.pointer)
         max_memory = min(self.pointer, self.buffer_size)
 
+        # Calculates the priorities of different experiences in the buffer,
+        # based on the absolute value of the reward (the greater the
+        # magnitude of the reward, the higher the priority)
         priorities = np.zeros(max_memory)
         for i in range(max_memory):
             priorities[i] = abs(self.reward_memory[i])
         priority_sum = np.sum(priorities)
+        # The probability that an experience is selected is proportional to
+        # it's priority (the absolute value of it's reward)
         probabilities = priorities / priority_sum
+
+        # Generates indices for the replay buffer based on the probability
+        # array
         sample_indices = np.random.choice(
             range(max_memory), size=batch_size, p=probabilities
         )
+        # Obtains the randomly sampled experiences and returns them
         states = self.state_memory[sample_indices]
         actions = self.action_memory[sample_indices]
         rewards = self.reward_memory[sample_indices]
