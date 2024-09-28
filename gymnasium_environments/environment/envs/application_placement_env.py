@@ -18,33 +18,33 @@ NUM_NODES_UPPER_BOUND = 5
 
 # These represent the lower and upper bounds on the processing speed
 # of network nodes in Instructions Per Second (IPS)
-NODE_SPEED_LOWER_BOUND = 3000000000
-NODE_SPEED_UPPER_BOUND = 7000000000
+NODE_SPEED_LOWER_BOUND = 3_000_000_000
+NODE_SPEED_UPPER_BOUND = 7_000_000_000
 
 # These represent the lower and upper bounds on the bandwidth of
 # network nodes in Bytes Per Second (BPS)
-NODE_BANDWIDTH_LOWER_BOUND = 2000000
-NODE_BANDWIDTH_UPPER_BOUND = 8000000
+NODE_BANDWIDTH_LOWER_BOUND = 2_000_000
+NODE_BANDWIDTH_UPPER_BOUND = 8_000_000
 
 # These represent the lower and upper bounds on the available
 # memory of network nodes in Bytes
-NODE_MEMORY_LOWER_BOUND = 12000000
-NODE_MEMORY_UPPER_BOUND = 15000000
+NODE_MEMORY_LOWER_BOUND = 12_000_000
+NODE_MEMORY_UPPER_BOUND = 15_000_000
 
 # These represent the lower and upper bounds on the size of activity
 # modules in # of Instructions
-MODULE_SIZE_LOWER_BOUND = 1500000000
-MODULE_SIZE_UPPER_BOUND = 2500000000
+MODULE_SIZE_LOWER_BOUND = 1_500_000_000
+MODULE_SIZE_UPPER_BOUND = 2_500_000_000
 
 # These represent the lower and upper bounds on the required memory
 # of acitivy modules in Bytes
-MODULE_MEMORY_REQUIRED_LOWER_BOUND = 1000000
-MODULE_MEMORY_REQUIRED_UPPER_BOUND = 3000000
+MODULE_MEMORY_REQUIRED_LOWER_BOUND = 1_000_000
+MODULE_MEMORY_REQUIRED_UPPER_BOUND = 3_000_000
 
 # These represent the lower and upper bound on the amount of data
 # required for a module to execute in Bytes
-MODULE_DATA_SIZE_LOWER_BOUND = 200000
-MODULE_DATA_SIZE_UPPER_BOUND = 800000
+MODULE_DATA_SIZE_LOWER_BOUND = 200_000
+MODULE_DATA_SIZE_UPPER_BOUND = 800_000
 
 # Maximum amount of time a module is afforded for processing (seconds)
 MAXIMUM_MODULE_PROCESSING_TIME = 1
@@ -156,32 +156,36 @@ class ApplicationPlacementEnv(gym.Env):
             module = first_module
             node = self.nodes[action]
 
-            # Adding the module to the node's processing queue
-            # asyncio.create_task causes node.add_module to be added to the
-            # event loop for processing (at some point, not immediately)
-            task = asyncio.create_task(node.add_module(module))
+            if module.memory_required > node.available_memory:
+                reward = -10
+                await asyncio.sleep(0)
+            else:
+                # Adding the module to the node's processing queue
+                # asyncio.create_task causes node.add_module to be added to the
+                # event loop for processing (at some point, not immediately)
+                task = asyncio.create_task(node.add_module(module))
 
-            # If the task is done already, and the result is 0, this means that
-            # a module was assigned to a node with insufficient memory for it,
-            # which incurs a negative reward
-            if task.done():
-                if not task.result():
-                    result = -1
-            # This line allows the event loop to be checked for pending tasks.
-            # The effect of these 2 lines is that node.add_module is added to
-            # the event loop, but the step function doesn't need to wait for it
-            # to finish before continuing.
-            await asyncio.sleep(0)
+                # If the task is done already, and the result is 0, this means that
+                # a module was assigned to a node with insufficient memory for it,
+                # which incurs a negative reward
+                if task.done():
+                    if not task.result():
+                        result = -1
+                # This line allows the event loop to be checked for pending tasks.
+                # The effect of these 2 lines is that node.add_module is added to
+                # the event loop, but the step function doesn't need to wait for it
+                # to finish before continuing.
+                await asyncio.sleep(0)
 
-            if self.render_mode == "human":
-                self._render_frame()
-            
-            # Calculates the processing time of the module
-            processing_time = module.num_instructions / node.processing_speed
-            # Calculates the resource overhead of the current module
-            resource_overhead = module.memory_required / node.available_memory
-            # Calculates the reward for the processing of this module
-            reward = (MAXIMUM_MODULE_PROCESSING_TIME - processing_time) + MAXIMUM_MODULE_PROCESSING_TIME * (1 - resource_overhead)
+                if self.render_mode == "human":
+                    self._render_frame()
+                
+                # Calculates the processing time of the module
+                processing_time = module.num_instructions / node.processing_speed
+                # Calculates the resource overhead of the current module
+                resource_overhead = module.memory_required / node.available_memory
+                # Calculates the reward for the processing of this module
+                reward = (MAXIMUM_MODULE_PROCESSING_TIME - processing_time) + MAXIMUM_MODULE_PROCESSING_TIME * (1 - resource_overhead)
 
             observation = self._get_obs()
         else:
@@ -292,7 +296,7 @@ class ApplicationPlacementEnv(gym.Env):
             pg.display.quit()
             pg.quit()
 
-    def _generate_modules(self, num_modules):
+    def _generate_modules(self, num_modules : int) -> dict[int, Application_Module]:
         """Generates a dictionary of Application_Module objects each with randomly
         generated properties."""
         modules = {}
@@ -315,7 +319,7 @@ class ApplicationPlacementEnv(gym.Env):
                                             memory_required, data_size)
         return modules
     
-    def _generate_nodes(self, num_nodes):
+    def _generate_nodes(self, num_nodes : int) -> dict[int, Network_Node]:
         """Generates a dictionary of Node objects each with randomly generated
         properties."""
         nodes = {}

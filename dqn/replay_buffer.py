@@ -2,8 +2,6 @@ from collections import deque
 import numpy as np
 import random
 
-MIN_BATCH_SIZE = 128
-
 class ReplayBuffer:
     """Stores state transitions to allow for training the dqn."""
     
@@ -39,10 +37,18 @@ class ReplayBuffer:
     def sample_batch(self, batch_size=64):
         """Samples a batch of experiences from the buffer."""
         max_memory = min(self.pointer, self.buffer_size)
-        batch = np.random.choice(max_memory, batch_size, replace=False)
-        states = self.state_memory[batch]
-        actions = self.action_memory[batch]
-        rewards = self.reward_memory[batch]
-        next_states = self.next_state_memory[batch]
-        dones = self.done_memory[batch]
+
+        priorities = np.zeros(max_memory)
+        for i in range(max_memory):
+            priorities[i] = abs(self.reward_memory[i])
+        priority_sum = np.sum(priorities)
+        probabilities = priorities / priority_sum
+        sample_indices = np.random.choice(
+            range(max_memory), size=batch_size, p=probabilities
+        )
+        states = self.state_memory[sample_indices]
+        actions = self.action_memory[sample_indices]
+        rewards = self.reward_memory[sample_indices]
+        next_states = self.next_state_memory[sample_indices]
+        dones = self.done_memory[sample_indices]
         return states, actions, rewards, next_states, dones

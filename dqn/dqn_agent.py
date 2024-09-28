@@ -7,7 +7,7 @@ OBSERVATION_SPACE = 12
 ACTION_SPACE = 5
 
 class DQNAgent:
-    def __init__(self, gamma=0.99, replace=100, lr=0.001):
+    def __init__(self, dqn=None, gamma=0.99, replace=100, lr=0.001):
         # High gamma ensures the agent prefers long-term rewards over short
         # term rewards
         self.gamma = gamma
@@ -20,11 +20,14 @@ class DQNAgent:
         self.memory = ReplayBuffer(OBSERVATION_SPACE)
         self.batch_size = 64
 
-        self.q_net = DuelingDQN()
-        self.target_net = DuelingDQN()
-        opt = keras.optimizers.Adam(learning_rate=lr)
-        self.q_net.compile(loss='mse', optimizer=opt) # type: ignore
-        self.target_net.compile(loss='mse', optimizer=opt) # type: ignore
+        if dqn is None:
+            self.q_net = DuelingDQN()
+            self.target_net = DuelingDQN()
+            opt = keras.optimizers.Adam(learning_rate=lr)
+            self.q_net.compile(loss='mse', optimizer=opt) # type: ignore
+            self.target_net.compile(loss='mse', optimizer=opt) # type: ignore
+        else:
+            self.q_net = dqn
 
     def act(self, state) -> int:
         if np.random.rand() <= self.epsilon:

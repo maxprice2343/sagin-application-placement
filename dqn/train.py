@@ -18,7 +18,7 @@ async def train(render: bool):
         env = ApplicationPlacementEnv(render_mode="human")
     else:
         env = ApplicationPlacementEnv()
-    steps = 30
+    steps = 100
     for s in range(steps):
         print(f"Training Episode: {s + 1}")
         done = False
@@ -34,7 +34,7 @@ async def train(render: bool):
                 total_reward += reward
 
         print(f"Total reward after {s} episodes is {total_reward} and epsilon is {agent.epsilon}")
-    keras.models.save_model(agent.q_net, MODEL_PATH)
+    agent.q_net.save("model.keras")
 
 if __name__ == '__main__':
     asyncio.run(train(render=True))
