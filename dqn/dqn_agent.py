@@ -1,64 +1,69 @@
+from dueling_dqn import DuelingDQN
+from replay_buffer import ReplayBuffer
 import numpy as np
-import tensorflow as tf
 import keras
 
-NUM_INPUT = 24
-NUM_OUTPUT = 5
+OBSERVATION_SPACE = 12
+ACTION_SPACE = 5
 
 class DQNAgent:
-    """The agent that learns to make choices in the environment."""
-    def __init__(self):
-        self.q_net = self._build_dqn_model()
-        self.target_q_net = self._build_dqn_model()
+    def __init__(self, dqn=None, gamma=0.99, replace=100, lr=0.001):
+        # High gamma ensures the agent prefers long-term rewards over short
+        # term rewards
+        self.gamma = gamma
+        # Epsilon starts at 1 and decays to 0.01 over the course of training
+        self.epsilon = 1.0
+        self.min_epsilon = 0.01
+        self.epsilon_decay = 1e-3
+        self.replace = replace
+        self.trainstep = 0
+        self.memory = ReplayBuffer(OBSERVATION_SPACE)
+        self.batch_size = 64
 
-    @staticmethod
-    def _build_dqn_model():
-        """Constructs and returns a Sequential model with 3 layers"""
-        model = keras.Sequential(
-            [
-                keras.layers.Input((NUM_INPUT,)),
-                keras.layers.Dense(12, activation="relu", name="layer1"),
-                keras.layers.Dense(NUM_OUTPUT, activation="linear", name="output layer")
-            ]
-        )
-        model.compile(
-            keras.optimizers.Adam(learning_rate=0.001) # type: ignore
-        )
-        return model
+        if dqn is None:
+            self.q_net = DuelingDQN()
+            self.target_net = DuelingDQN()
+            opt = keras.optimizers.Adam(learning_rate=lr)
+            self.q_net.compile(loss='mse', optimizer=opt) # type: ignore
+            self.target_net.compile(loss='mse', optimizer=opt) # type: ignore
+        else:
+            self.q_net = dqn
 
-    def collect_policy(self, state):
-        if np.random.random() < 0.05:
-            return self.random_policy(state)
-        return self.policy(state)
+    def act(self, state) -> int:
+        if np.random.rand() <= self.epsilon:
+            return np.random.choice([i for i in range(ACTION_SPACE)])
+        else:
+            actions = self.q_net.advantage(np.array([state]))
+            action = np.argmax(actions)
+            return int(action)
+        
+    def update_memory(self, state, action, reward, next_state, done):
+        self.memory.store_experience(state, action, reward, next_state, done)
 
-    def policy(self, state):
-        """Returns an action that should be taken based on an environment state."""
-        # Converts the state to an input suitable to the DQN
-        q_net_input = tf.convert_to_tensor(state[None, :], dtype=tf.int32)
-        q_value = self.q_net(q_net_input)
-        # Determines the best action based on the output from the DQN
-        action = np.argmax(q_value.numpy()[0], axis=0)
-        return action
-    
-    def random_policy(self, state):
-        return np.random.randint(0, NUM_OUTPUT - 1)
+    def update_target(self):
+        self.target_net.set_weights(self.q_net.get_weights())
 
-    def update_target_network(self):
-        """Updates the target DQN's weights with the main DQN's weights"""
-        self.target_q_net.set_weights(self.q_net.get_weights())
+    def update_epsilon(self):
+        if self.epsilon > self.min_epsilon:
+            self.epsilon -= self.epsilon_decay
+        else:
+            self.epsilon = self.min_epsilon
+        return self.epsilon
 
-    def train(self, batch):
-        """Trains the DQN model on a batch of experiences."""
-        state_batch, next_state_batch, action_batch, reward_batch, done_batch = batch
-        current_q = self.q_net(state_batch).numpy()
-        target_q = np.copy(current_q)
-        next_q = self.target_q_net(next_state_batch).numpy()
-        max_next_q = np.amax(next_q, axis=1)
-        for i in range(state_batch.shape[0]):
-            target_q_value = reward_batch[i]
-            if not done_batch[i]:
-                target_q_value += 0.95 * max_next_q[i]
-            target_q[i][action_batch[i]] = target_q_value
-        training_history = self.q_net.fit(x=state_batch, y=target_q, verbose="0")
-        loss = training_history.history['loss']
-        return loss
+    def train(self):
+        if self.memory.pointer < self.batch_size:
+            return
+        
+        if self.trainstep % self.replace == 0:
+            self.update_target()
+        
+        states, actions, rewards, next_states, dones = self.memory.sample_batch(self.batch_size)
+        target = self.q_net.predict(states)
+        next_state_val = self.target_net.predict(next_states)
+        max_action = np.argmax(self.q_net.predict(next_states), axis=1)
+        batch_index = np.arange(self.batch_size, dtype=np.int32)
+        q_target = np.copy(target)
+        q_target[batch_index, actions] = rewards + self.gamma * next_state_val[batch_index, max_action]*dones
+        self.q_net.train_on_batch(states, q_target)
+        self.update_epsilon()
+        self.trainstep += 1

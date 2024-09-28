@@ -162,3 +162,9 @@ cython_debug/
 
 .vscode
 test.py
+configs.txt
+experiences.pickle
+model_1.keras
+model_2.keras
+model.keras
+model2.keras
