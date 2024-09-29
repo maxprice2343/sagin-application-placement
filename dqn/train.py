@@ -27,10 +27,10 @@ async def train(render: bool, num_episodes: int, model_save_path: str):
             state, _ = env.reset()
             episode_reward = 0
             while not done:
-                action = agent.act(state)
+                action = agent.policy(state)
                 next_state, reward, done, _, _ = await env.step(action)
                 if next_state is not None:
-                    agent.update_memory(state, action, reward, next_state, done)
+                    agent.store_experience(state, action, reward, next_state, done)
                     agent.train()
                     state = next_state
                     episode_reward += reward

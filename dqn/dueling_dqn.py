@@ -8,7 +8,7 @@ NUM_INPUT = 12
 NUM_OUTPUT = 5
 
 class DuelingDQN(keras.Model):
-    """The agent that learns to make choices in the environment."""
+    """Inherits from a Tensorflow model. Implements a Dueling DQN structure."""
     def __init__(self, *args, **kwargs):
         super(DuelingDQN, self).__init__(*args, **kwargs)
         self.d1 = keras.layers.Dense(128, activation='relu')
@@ -21,8 +21,7 @@ class DuelingDQN(keras.Model):
         x = self.d2(x)
         v = self.v(x)
         a = self.a(x)
-        Q = v + (a - tf.math.reduce_mean(a, axis=1, keepdims=True))
-        return Q
+        return v + (a - tf.math.reduce_mean(a, axis=1, keepdims=True))
     
     def advantage(self, state):
         x = self.d1(state)

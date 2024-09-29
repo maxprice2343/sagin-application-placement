@@ -17,7 +17,7 @@ async def evaluate_training_result(agent: DQNAgent, rendering:bool, num_episodes
         done = False
         episode_reward = 0.0
         while not done:
-            action = agent.act(state)
+            action = agent.policy(state)
             next_state, reward, done, _, _ = await env.step(action)
             episode_reward += reward
             state = next_state
